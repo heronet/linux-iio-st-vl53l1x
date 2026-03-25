@@ -1,0 +1,26 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+    compatible = "brcm,bcm2712"; /* Raspberry Pi 5 */
+
+    fragment@0 {
+        target = <&i2c1>;
+
+        __overlay__ {
+            status = "okay";
+            #address-cells = <1>;
+            #size-cells = <0>;
+
+            vl53l1x: proximity@29 {
+                compatible = "st,vl53l1x";
+                reg = <0x29>;
+                reset-gpios = <&gpio 5 1>;
+                vdd-supply = <&vdd_3v3_reg>;
+                /* Add these two lines for interrupt support */
+                //interrupt-parent = <&gpio>;
+                //interrupts = <6 2>; /* Pin 23, 2 = IRQ_TYPE_EDGE_FALLING */
+            };
+        };
+    };
+};
