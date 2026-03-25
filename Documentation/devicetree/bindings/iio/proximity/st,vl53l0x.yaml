@@ -33,8 +33,8 @@ required:
   - compatible
   - reg
 
-# vdd-supply is not globally required only for backwards compatibility with
-# existing st,vl53l0x devicetrees that omit it.
+# vdd-supply is not made globally required to maintain backwards compatibility
+# with existing st,vl53l0x devicetrees that do not specify it.
 allOf:
   - if:
       properties:
