@@ -96,7 +96,6 @@ enum vl53l1x_distance_mode {
 struct vl53l1x_data {
 	struct regmap *regmap;
 	struct completion completion;
-	struct regulator *vdd_supply;
 	struct reset_control *xshut_reset;
 	enum vl53l1x_distance_mode distance_mode;
 	u8 gpio_polarity;
@@ -604,36 +603,6 @@ static void vl53l1x_stop_ranging_action(void *priv)
 	vl53l1x_stop_ranging(priv);
 }
 
-static void vl53l1x_power_off(void *priv)
-{
-	struct vl53l1x_data *data = priv;
-
-	reset_control_assert(data->xshut_reset);
-	regulator_disable(data->vdd_supply);
-}
-
-static int vl53l1x_power_on(struct vl53l1x_data *data)
-{
-	int ret;
-
-	ret = regulator_enable(data->vdd_supply);
-	if (ret)
-		return ret;
-
-	ret = reset_control_deassert(data->xshut_reset);
-	if (ret) {
-		regulator_disable(data->vdd_supply);
-		return ret;
-	}
-	/*
-	 * 1.2 ms max boot duration.
-	 * Datasheet Section 3.6 "Power up and boot sequence".
-	 */
-	fsleep(1200);
-
-	return 0;
-}
-
 static int vl53l1x_configure_irq(struct device *dev, int irq,
 				 struct iio_dev *indio_dev)
 {
@@ -660,11 +629,6 @@ static int vl53l1x_probe(struct i2c_client *client)
 	struct iio_dev *indio_dev;
 	int ret;
 
-	if (!i2c_check_functionality(client->adapter,
-				     I2C_FUNC_SMBUS_READ_I2C_BLOCK |
-				     I2C_FUNC_SMBUS_BYTE_DATA))
-		return -EOPNOTSUPP;
-
 	indio_dev = devm_iio_device_alloc(dev, sizeof(*data));
 	if (!indio_dev)
 		return -ENOMEM;
@@ -677,27 +641,24 @@ static int vl53l1x_probe(struct i2c_client *client)
 		return dev_err_probe(dev, PTR_ERR(data->regmap),
 				     "regmap initialization failed\n");
 
-	data->vdd_supply = devm_regulator_get(dev, "vdd");
-	if (IS_ERR(data->vdd_supply))
-		return dev_err_probe(dev, PTR_ERR(data->vdd_supply),
-				     "Unable to get VDD regulator\n");
+	ret = devm_regulator_get_enable(dev, "vdd");
+	if (ret)
+		return dev_err_probe(dev, ret, "Failed to enable VDD regulator\n");
 
 	/*
 	 * XSHUT held low puts the chip in hardware standby. All register
 	 * state is lost on de-assert so this is functionally a reset.
 	 */
-	data->xshut_reset = devm_reset_control_get_optional_exclusive(dev, NULL);
+	data->xshut_reset = devm_reset_control_get_optional_exclusive_deasserted(dev, NULL);
 	if (IS_ERR(data->xshut_reset))
 		return dev_err_probe(dev, PTR_ERR(data->xshut_reset),
 				     "Cannot get reset control\n");
 
-	ret = vl53l1x_power_on(data);
-	if (ret)
-		return dev_err_probe(dev, ret, "Failed to power on the chip\n");
-
-	ret = devm_add_action_or_reset(dev, vl53l1x_power_off, data);
-	if (ret)
-		return ret;
+	/*
+	 * 1.2 ms max boot duration.
+	 * Datasheet Section 3.6 "Power up and boot sequence".
+	 */
+	fsleep(1200);
 
 	ret = vl53l1x_chip_init(data);
 	if (ret)
