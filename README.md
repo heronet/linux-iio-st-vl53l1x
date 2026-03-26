@@ -5,10 +5,10 @@
 
 Out-of-tree Linux kernel driver for the **ST VL53L1X** Time-of-Flight (ToF) laser ranging sensor using the **IIO proximity** subsystem.
 
-This driver is currently under upstream review.
+This driver has been accepted upstream and is now part of the Linux kernel.
 
 ### Status
-- **Version**: v8 (will be submitted shortly)
+- **Status**: Accepted upstream
 - **Target**: `drivers/iio/proximity/vl53l1x-i2c.c`
 - **Binding**: `Documentation/devicetree/bindings/iio/proximity/st,vl53l0x.yaml`
 
